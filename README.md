@@ -11,6 +11,10 @@ Maintainer: Hal Wayland
 - Blends the selected colors when Blender has multiple mesh select modes active.
 - Restores the original 3D View header color outside mesh Edit Mode or when the add-on is disabled.
 
+## Demo
+
+<video src="./docs/video_example.mp4" controls width="100%"></video>
+
 ## Installation
 
 ### Blender 5.1 Extension Install
