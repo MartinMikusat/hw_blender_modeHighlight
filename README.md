@@ -13,7 +13,7 @@ Maintainer: Hal Wayland
 
 ## Demo
 
-<video src="./docs/video_example.mp4" controls width="100%"></video>
+[Watch the demo video](docs/video_example.mp4)
 
 ## Installation
 
