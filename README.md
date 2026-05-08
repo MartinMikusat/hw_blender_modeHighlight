@@ -47,3 +47,5 @@ Open the add-on preferences to customize colors:
 `hw_mode_highlight.py` contains the add-on implementation and can be installed directly as a legacy add-on. `__init__.py` and `blender_manifest.toml` provide the Blender 5 extension package entry point.
 
 Generated extension zips belong in `dist/`, which is ignored by git.
+
+For future agent work, see `AGENTS.md` for project context, validation commands, and implementation constraints.
