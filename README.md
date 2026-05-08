@@ -13,7 +13,7 @@ Maintainer: Hal Wayland
 
 ## Demo
 
-[Watch the demo video](docs/video_example.mp4)
+https://github.com/user-attachments/assets/6eb396ae-5958-4b86-8a32-457b708d872f
 
 ## Installation
 
