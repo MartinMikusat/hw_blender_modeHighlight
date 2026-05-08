@@ -1,10 +1,10 @@
 bl_info = {
-    "name": "HW Mode Highlight",
-    "author": "Martin",
-    "version": (0, 1, 0),
+    "name": "hw_modeHighlight",
+    "author": "Hal Wayland",
+    "version": (0, 2, 0),
     "blender": (5, 1, 0),
-    "location": "Preferences > Add-ons > HW Mode Highlight",
-    "description": "Change editor header colors based on the current Blender mode.",
+    "location": "Preferences > Add-ons > hw_modeHighlight",
+    "description": "Change the 3D View header color based on mesh edit select mode.",
     "support": "COMMUNITY",
     "category": "Interface",
 }
@@ -13,19 +13,17 @@ import bpy
 from bpy.app.handlers import persistent
 from bpy.props import (
     BoolProperty,
-    EnumProperty,
     FloatProperty,
     FloatVectorProperty,
 )
 from bpy.types import AddonPreferences, Operator
 
 
-ADDON_ID = __name__
+ADDON_ID = __package__ if __package__ else __name__
 TIMER_INTERVAL_DEFAULT = 0.15
 
 _ORIGINAL_HEADER_COLORS = {}
 _LAST_APPLIED_COLOR = None
-_LAST_TARGET_SCOPE = None
 
 
 def _preference_updated(self, context):
@@ -38,18 +36,8 @@ class HW_MODE_HIGHLIGHT_Preferences(AddonPreferences):
 
     enabled: BoolProperty(
         name="Enable Highlighting",
-        description="Continuously update header colors to reflect the active mode",
+        description="Continuously update the 3D View header color in mesh Edit Mode",
         default=True,
-        update=_preference_updated,
-    )
-    target_scope: EnumProperty(
-        name="Header Scope",
-        description="Choose which editor headers should receive the mode highlight",
-        items=(
-            ("VIEW_3D", "3D View Only", "Only tint 3D View headers"),
-            ("ALL", "All Editors", "Tint every editor header that exposes a theme color"),
-        ),
-        default="VIEW_3D",
         update=_preference_updated,
     )
     timer_interval: FloatProperty(
@@ -60,24 +48,6 @@ class HW_MODE_HIGHLIGHT_Preferences(AddonPreferences):
         max=2.0,
         step=5,
         precision=2,
-    )
-    object_color: FloatVectorProperty(
-        name="Object Mode",
-        subtype="COLOR",
-        size=4,
-        min=0.0,
-        max=1.0,
-        default=(0.13, 0.13, 0.13, 1.0),
-        update=_preference_updated,
-    )
-    edit_color: FloatVectorProperty(
-        name="Edit Mode",
-        subtype="COLOR",
-        size=4,
-        min=0.0,
-        max=1.0,
-        default=(0.80, 0.45, 0.10, 1.0),
-        update=_preference_updated,
     )
     vertex_select_color: FloatVectorProperty(
         name="Vertex Select",
@@ -106,74 +76,21 @@ class HW_MODE_HIGHLIGHT_Preferences(AddonPreferences):
         default=(0.82, 0.25, 0.16, 1.0),
         update=_preference_updated,
     )
-    mixed_select_color: FloatVectorProperty(
-        name="Mixed Mesh Select",
-        subtype="COLOR",
-        size=4,
-        min=0.0,
-        max=1.0,
-        default=(0.46, 0.24, 0.75, 1.0),
-        update=_preference_updated,
-    )
-    sculpt_color: FloatVectorProperty(
-        name="Sculpt Mode",
-        subtype="COLOR",
-        size=4,
-        min=0.0,
-        max=1.0,
-        default=(0.40, 0.20, 0.58, 1.0),
-        update=_preference_updated,
-    )
-    pose_color: FloatVectorProperty(
-        name="Pose Mode",
-        subtype="COLOR",
-        size=4,
-        min=0.0,
-        max=1.0,
-        default=(0.12, 0.48, 0.62, 1.0),
-        update=_preference_updated,
-    )
-    paint_color: FloatVectorProperty(
-        name="Paint Modes",
-        subtype="COLOR",
-        size=4,
-        min=0.0,
-        max=1.0,
-        default=(0.56, 0.32, 0.12, 1.0),
-        update=_preference_updated,
-    )
-    fallback_color: FloatVectorProperty(
-        name="Other Modes",
-        subtype="COLOR",
-        size=4,
-        min=0.0,
-        max=1.0,
-        default=(0.18, 0.18, 0.18, 1.0),
-        update=_preference_updated,
-    )
 
     def draw(self, context):
-        """Expose mode colors in add-on preferences because artists tune these visually."""
+        """Expose only select-mode colors because the add-on's purpose is edit-mode feedback."""
         layout = self.layout
         layout.prop(self, "enabled")
-        layout.prop(self, "target_scope")
-        layout.prop(self, "timer_interval")
-
-        mode_box = layout.box()
-        mode_box.label(text="Object Modes")
-        mode_box.prop(self, "object_color")
-        mode_box.prop(self, "edit_color")
-        mode_box.prop(self, "sculpt_color")
-        mode_box.prop(self, "pose_color")
-        mode_box.prop(self, "paint_color")
-        mode_box.prop(self, "fallback_color")
 
         select_box = layout.box()
-        select_box.label(text="Mesh Edit Select Modes")
+        select_box.label(text="3D View Header Colors")
         select_box.prop(self, "vertex_select_color")
         select_box.prop(self, "edge_select_color")
         select_box.prop(self, "face_select_color")
-        select_box.prop(self, "mixed_select_color")
+
+        advanced_box = layout.box()
+        advanced_box.label(text="Advanced")
+        advanced_box.prop(self, "timer_interval")
 
 
 class HW_MODE_HIGHLIGHT_OT_apply_now(Operator):
@@ -195,31 +112,28 @@ CLASSES = (
 
 
 def _get_preferences(context):
-    """Return add-on preferences when Blender has registered them for this module."""
+    """Return add-on preferences using the package id required by Blender extensions."""
     addon = context.preferences.addons.get(ADDON_ID)
     if addon is None:
         return None
     return addon.preferences
 
 
-def _get_header_spaces(preferences, context):
-    """Find theme header color owners so the add-on can restore exactly what it touches."""
+def _get_view3d_header_space(context):
+    """Return the theme owner for the 3D View header bar the user sees above the viewport."""
     theme = context.preferences.themes[0]
+    return theme.view_3d.space
 
-    if preferences.target_scope == "VIEW_3D":
-        return [theme.view_3d.space]
 
-    header_spaces = []
-    for prop in theme.bl_rna.properties:
-        if prop.identifier == "rna_type":
-            continue
+def _redraw_view3d_headers(context):
+    """Request redraws so theme color changes appear in open 3D View headers promptly."""
+    screen = context.screen
+    if screen is None:
+        return
 
-        themed_area = getattr(theme, prop.identifier, None)
-        space = getattr(themed_area, "space", None)
-        if space is not None and hasattr(space, "header"):
-            header_spaces.append(space)
-
-    return header_spaces
+    for area in screen.areas:
+        if area.type == "VIEW_3D":
+            area.tag_redraw()
 
 
 def _remember_original_header(space):
@@ -231,7 +145,7 @@ def _remember_original_header(space):
 
 def _restore_original_headers():
     """Restore all headers touched by this runtime to avoid leaving theme side effects behind."""
-    global _LAST_APPLIED_COLOR, _LAST_TARGET_SCOPE
+    global _LAST_APPLIED_COLOR
 
     for space, color in _ORIGINAL_HEADER_COLORS.values():
         try:
@@ -241,84 +155,77 @@ def _restore_original_headers():
 
     _ORIGINAL_HEADER_COLORS.clear()
     _LAST_APPLIED_COLOR = None
-    _LAST_TARGET_SCOPE = None
+
+
+def _blend_colors(colors):
+    """Average selected colors so multi-select modes still use only the three configured values."""
+    color_count = len(colors)
+    return tuple(sum(color[channel] for color in colors) / color_count for channel in range(4))
+
+
+def _is_mesh_edit_mode(context):
+    """Limit highlighting to mesh Edit Mode because other modes should keep the normal theme."""
+    active_object = context.object
+    return (
+        active_object is not None
+        and active_object.type == "MESH"
+        and active_object.mode == "EDIT"
+    )
 
 
 def _get_mesh_select_mode_color(preferences, context):
-    """Map vertex, edge, and face select modes to separate colors inside mesh Edit Mode."""
+    """Map vertex, edge, and face select modes to the configured 3D View header colors."""
     vertex_enabled, edge_enabled, face_enabled = context.tool_settings.mesh_select_mode
-    enabled_modes = [
-        mode
-        for mode, is_enabled in (
-            ("VERTEX", vertex_enabled),
-            ("EDGE", edge_enabled),
-            ("FACE", face_enabled),
-        )
-        if is_enabled
-    ]
+    selected_colors = []
 
-    if enabled_modes == ["VERTEX"]:
-        return tuple(preferences.vertex_select_color)
-    if enabled_modes == ["EDGE"]:
-        return tuple(preferences.edge_select_color)
-    if enabled_modes == ["FACE"]:
-        return tuple(preferences.face_select_color)
-    if enabled_modes:
-        return tuple(preferences.mixed_select_color)
+    if vertex_enabled:
+        selected_colors.append(tuple(preferences.vertex_select_color))
+    if edge_enabled:
+        selected_colors.append(tuple(preferences.edge_select_color))
+    if face_enabled:
+        selected_colors.append(tuple(preferences.face_select_color))
 
-    return tuple(preferences.edit_color)
+    if not selected_colors:
+        return None
+    if len(selected_colors) == 1:
+        return selected_colors[0]
 
-
-def _get_mode_color(preferences, context):
-    """Choose the active highlight color from Blender mode first, then mesh select mode."""
-    active_object = context.object
-    mode = active_object.mode if active_object is not None else "OBJECT"
-
-    if mode == "OBJECT":
-        return tuple(preferences.object_color)
-    if mode == "EDIT":
-        if active_object is not None and active_object.type == "MESH":
-            return _get_mesh_select_mode_color(preferences, context)
-        return tuple(preferences.edit_color)
-    if mode == "SCULPT":
-        return tuple(preferences.sculpt_color)
-    if mode == "POSE":
-        return tuple(preferences.pose_color)
-    if mode in {"VERTEX_PAINT", "WEIGHT_PAINT", "TEXTURE_PAINT"}:
-        return tuple(preferences.paint_color)
-
-    return tuple(preferences.fallback_color)
+    return _blend_colors(selected_colors)
 
 
 def _apply_header_color(preferences, context, color):
-    """Write the active color into the selected theme headers only when it has changed."""
-    global _LAST_APPLIED_COLOR, _LAST_TARGET_SCOPE
+    """Write the active color to the 3D View header only when it has changed."""
+    global _LAST_APPLIED_COLOR
 
-    if preferences.target_scope != _LAST_TARGET_SCOPE:
-        _restore_original_headers()
-
-    if color == _LAST_APPLIED_COLOR and preferences.target_scope == _LAST_TARGET_SCOPE:
+    if color == _LAST_APPLIED_COLOR:
         return
 
-    for space in _get_header_spaces(preferences, context):
-        _remember_original_header(space)
-        space.header = color
+    space = _get_view3d_header_space(context)
+    _remember_original_header(space)
+    space.header = color
 
     _LAST_APPLIED_COLOR = color
-    _LAST_TARGET_SCOPE = preferences.target_scope
+    _redraw_view3d_headers(context)
 
 
 def _apply_current_highlight(context):
-    """Refresh the UI highlight so mode changes are visible without manual user action."""
+    """Refresh the 3D View header so select-mode changes are visible without user action."""
     preferences = _get_preferences(context)
     if preferences is None:
         return
 
-    if not preferences.enabled:
+    if not preferences.enabled or not _is_mesh_edit_mode(context):
         _restore_original_headers()
+        _redraw_view3d_headers(context)
         return
 
-    _apply_header_color(preferences, context, _get_mode_color(preferences, context))
+    color = _get_mesh_select_mode_color(preferences, context)
+    if color is None:
+        _restore_original_headers()
+        _redraw_view3d_headers(context)
+        return
+
+    _apply_header_color(preferences, context, color)
 
 
 def _highlight_timer():
