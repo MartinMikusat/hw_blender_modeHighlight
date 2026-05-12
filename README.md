@@ -52,4 +52,4 @@ Open the add-on preferences to customize colors:
 
 Generated extension zips belong in `dist/`, which is ignored by git.
 
-For future agent work, see `AGENTS.md` for project context, validation commands, and implementation constraints.
+For future agent work, see `../AGENTS.md` for project context, validation commands, and implementation constraints.
